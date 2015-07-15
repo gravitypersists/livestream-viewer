@@ -1,0 +1,182 @@
+<!doctype HTML>
+<html>
+<head>
+<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+<title>Observer</title>
+<style>
+  html, body { 
+    height: 100%;
+  }
+</style>
+<script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=false"></script>
+<script type="text/javascript">
+var places = [
+  { yt: 'Z1agHAa6eG8', lat: 52.504079, lng: 4.963976 },
+  { yt: 'aV-o-9aNPuQ', lat: 33.656411, lng: -118.002788 },
+  { yt: 'gnQ-OL-vkqw', lat: 52.367349, lng: 4.889529 },
+  { yt: 'Xdoeoy3kpvM', lat: 35.658074, lng: 139.698582 },
+  { yt: 'NvpHx5q2oAU', lat: 43.919451, lng: -80.097642 },
+  { yt: 'IaqE6Dn-bMw', lat: 67.102196, lng: 15.395666 },
+  { yt: 'yE2UE_q2sq4', lat: 52.989872, lng: 22.249564 },
+  { yt: 'YMAIenH97ZE', lat: 53.404640, lng: 23.496707 },
+  { yt: 'zME4DDgSpwA', lat: 1.295190, lng: 103.858619 },
+  { yt: 'bwZbUlVSak4', lat: 52.473482, lng: 4.820368 },
+  { yt: 'h9CX_lZzRik', lat: 43.347420, lng: -2.657577 },
+  { yt: 'xD80g_YGMuU', lat: 36.248554, lng: 137.638018 },
+]
+
+/* An InfoBox is like an info window, but it displays
+ * under the marker, opens quicker, and has flexible styling.
+ * @param {GLatLng} latlng Point to place bar at
+ * @param {Map} map The map on which to display this InfoBox.
+ * @param {Object} opts Passes configuration options - content,
+ *   offsetVertical, offsetHorizontal, className, height, width
+ */
+function InfoBox(opts) {
+  google.maps.OverlayView.call(this);
+  this.latlng_ = opts.latlng;
+  this.map_ = opts.map;
+  this.offsetVertical_ = 0;
+  this.offsetHorizontal_ = 5;
+  this.height_ = 315;
+  this.width_ = 560;
+  this.yt_ = opts.yt;
+
+  var me = this;
+  this.boundsChangedListener_ =
+    google.maps.event.addListener(this.map_, "bounds_changed", function() {
+      return me.panMap.apply(me);
+    });
+
+  // Once the properties of this OverlayView are initialized, set its map so
+  // that we can display it.  This will trigger calls to panes_changed and
+  // draw.
+  this.setMap(this.map_);
+}
+
+/* InfoBox extends GOverlay class from the Google Maps API
+ */
+InfoBox.prototype = new google.maps.OverlayView();
+
+/* Creates the DIV representing this InfoBox
+ */
+InfoBox.prototype.remove = function() {
+  if (this.div_) {
+    this.div_.parentNode.removeChild(this.div_);
+    this.div_ = null;
+    this.setMap(null);
+  }
+};
+
+/* Redraw the Bar based on the current projection and zoom level
+ */
+InfoBox.prototype.draw = function() {
+  // Creates the element if it doesn't exist already.
+  this.createElement();
+  if (!this.div_) return;
+
+  // Calculate the DIV coordinates of two opposite corners of our bounds to
+  // get the size and position of our Bar
+  var pixPosition = this.getProjection().fromLatLngToDivPixel(this.latlng_);
+  if (!pixPosition) return;
+
+  // Now position our DIV based on the DIV coordinates of our bounds
+  this.div_.style.width = this.width_ + "px";
+  this.div_.style.left = (pixPosition.x + this.offsetHorizontal_) + "px";
+  this.div_.style.height = this.height_ + "px";
+  this.div_.style.top = (pixPosition.y + this.offsetVertical_) + "px";
+  this.div_.style.display = 'block';
+};
+
+/* Creates the DIV representing this InfoBox in the floatPane.  If the panes
+ * object, retrieved by calling getPanes, is null, remove the element from the
+ * DOM.  If the div exists, but its parent is not the floatPane, move the div
+ * to the new pane.
+ * Called from within draw.  Alternatively, this can be called specifically on
+ * a panes_changed event.
+ */
+InfoBox.prototype.createElement = function() {
+  var panes = this.getPanes();
+  var div = this.div_;
+  if (!div) {
+    // This does not handle changing panes.  You can set the map to be null and
+    // then reset the map to move the div.
+    div = this.div_ = document.createElement("div");
+    div.style.border = "0px none";
+    div.style.position = "absolute";
+    div.style.background = "#fff";
+    div.style.width = this.width_ + "px";
+    div.style.height = this.height_ + "px";
+    var contentDiv = document.createElement("div");
+    contentDiv.innerHTML = '<iframe width="560" height="315" src="https://www.youtube.com/embed/' + this.yt_ + '?autoplay=1" autoplay="true" frameborder="0" allowfullscreen></iframe>';
+    var topDiv = document.createElement("div");
+    topDiv.style.textAlign = "right";
+    var closeImg = document.createElement("img");
+    closeImg.style.width = "32px";
+    closeImg.style.height = "32px";
+    closeImg.style.cursor = "pointer";
+    closeImg.style.position = "absolute";
+    closeImg.style.right = "-15px";
+    closeImg.style.top = "-15px";
+    closeImg.src = "http://gmaps-samples.googlecode.com/svn/trunk/images/closebigger.gif";
+    topDiv.appendChild(closeImg);
+
+    function removeInfoBox(ib) {
+      return function() {
+        ib.setMap(null);
+      };
+    }
+
+    google.maps.event.addDomListener(closeImg, 'click', removeInfoBox(this));
+
+    div.appendChild(topDiv);
+    div.appendChild(contentDiv);
+    div.style.display = 'none';
+    panes.floatPane.appendChild(div);
+    this.panMap();
+  } else if (div.parentNode != panes.floatPane) {
+    // The panes have changed.  Move the div.
+    div.parentNode.removeChild(div);
+    panes.floatPane.appendChild(div);
+  } else {
+    // The panes have not changed, so no need to create or move the div.
+  }
+}
+
+/* Pan the map to fit the InfoBox.
+ */
+InfoBox.prototype.panMap = function() {
+  return;
+};
+
+var currentBox =  null;
+function initialize() {
+    var myOptions = {
+      zoom: 2,
+      center: new google.maps.LatLng(40, 0),
+      mapTypeId: google.maps.MapTypeId.ROADMAP,
+      sensor: 'true'
+    }
+    var map = new google.maps.Map(document.getElementById("map_canvas"), myOptions);
+
+    places.forEach(function(place) {
+      var marker = new google.maps.Marker({
+          position: new google.maps.LatLng(place.lat, place.lng),
+          map: map
+      });
+      google.maps.event.addListener(marker, "click", function(e) {
+        console.log(place.yt)
+        var infoBox = new InfoBox({latlng: marker.getPosition(), map: map, yt: place.yt});
+        if (currentBox) currentBox.remove();
+        currentBox = infoBox;
+      });
+    });
+
+  }
+</script>
+</head>
+<body style="margin:0px; padding:0px;" onload="initialize()">
+  <div id="map_canvas" style="width:100%; height:100%"></div>
+</body>
+</html>
